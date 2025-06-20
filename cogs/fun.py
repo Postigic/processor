@@ -1,3 +1,4 @@
+import discord
 from discord.ext import commands
 import random
 
@@ -29,8 +30,12 @@ class Fun(commands.Cog):
             !roll → rolls a 6-sided die
             !roll 20 → rolls a 20-sided die
         """
-        result = random.randint(1, sides)
-        await ctx.send(f"🎲 you rolled a {result} (1-{sides})")
+        embed = discord.Embed(color=discord.Color.red())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        embed.add_field(name="\n", value="\n", inline=False)
+        embed.add_field(name="🎲 you rolled a...", value=f"{random.randint(1, sides)} (1-{sides})", inline=False)
+
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def ask(self, ctx, *, question):
@@ -40,7 +45,12 @@ class Fun(commands.Cog):
             !ask Will I win the lottery?
             !ask Should I eat pizza?
         """
-        await ctx.send(f"🎱 {random.choice(self.responses)}")
+        embed = discord.Embed(color=discord.Color.purple())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        embed.add_field(name="\n", value="\n", inline=False)
+        embed.add_field(name="👀 uhh...", value=random.choice(self.responses), inline=False)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Fun(bot))
