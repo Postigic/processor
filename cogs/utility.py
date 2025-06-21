@@ -1,3 +1,4 @@
+import discord
 from discord.ext import commands
 import time
 
@@ -13,7 +14,13 @@ class Utility(commands.Cog):
         seconds = int(time.time() - start_time)
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
-        await ctx.send(f"uptime: {hours}h {minutes}m {seconds}s")
+
+        embed = discord.Embed(color=discord.Color.dark_grey())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        embed.add_field(name="\n", value="\n", inline=False)
+        embed.add_field(name="🕔 uptime", value=f"{hours}h {minutes}m {seconds}s", inline=False)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
