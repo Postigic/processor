@@ -113,7 +113,7 @@ class URLStore(commands.Cog):
         entries = self.blacklist_table.all()
         if entries:
             for i, entry in enumerate(entries, start=1):
-                embed.add_field(name=f"{i}.", value=entry['url'], inline=False)
+                embed.add_field(name=f"{i}. {entry['url']}", value="", inline=False)
         else:
             embed.description = "🦗 nothing here yet..."
 
