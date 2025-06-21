@@ -74,6 +74,8 @@ class URLStore(commands.Cog):
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
+        embed.add_field(name="\n", value="\n", inline=False)
+
         if self.blacklist_table.contains(Query().url == url):
             embed.add_field(name="⚠️ uh oh...", value=f"{url} already blacklisted", inline=False)
         else:
@@ -89,6 +91,8 @@ class URLStore(commands.Cog):
         embed = discord.Embed(color=discord.Color.orange())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
+        embed.add_field(name="\n", value="\n", inline=False)
+
         if self.blacklist_table.contains(Query().url == url):
             self.blacklist_table.remove(Query().url == url)
             embed.add_field(name="✅ ding ding ding!!!", value=f"{url} removed from blacklist", inline=False)
@@ -103,6 +107,8 @@ class URLStore(commands.Cog):
         """List all blacklisted URLs."""
         embed = discord.Embed(title="🚫 blacklisted urls", color=discord.Color.dark_grey())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+
+        embed.add_field(name="\n", value="\n", inline=False)
 
         entries = self.blacklist_table.all()
         if entries:
