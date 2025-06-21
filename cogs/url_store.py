@@ -1,3 +1,4 @@
+import discord
 from discord.ext import commands
 from tinydb import TinyDB, Query
 import random
@@ -70,31 +71,47 @@ class URLStore(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def blacklist_add(self, ctx, url: str):
         """Add a URL to the blacklist."""
+        embed = discord.Embed(color=discord.Color.red())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+
         if self.blacklist_table.contains(Query().url == url):
-            await ctx.send("URL is already blacklisted.")
+            embed.add_field(name="⚠️ uh oh...", value=f"{url} already blacklisted", inline=False)
         else:
             self.blacklist_table.insert({'url': url})
-            await ctx.send(f"Blacklisted: {url}")
+            embed.add_field(name="✅ ding ding ding!!!", value=f"{url} blacklisted", inline=False)
+
+        await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_remove")
     @commands.has_permissions(administrator=True)
     async def blacklist_remove(self, ctx, url: str):
         """Remove a URL from the blacklist."""
+        embed = discord.Embed(color=discord.Color.orange())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+
         if self.blacklist_table.contains(Query().url == url):
             self.blacklist_table.remove(Query().url == url)
-            await ctx.send(f"Removed from blacklist: {url}")
+            embed.add_field(name="✅ ding ding ding!!!", value=f"{url} removed from blacklist", inline=False)
         else:
-            await ctx.send("URL not found in blacklist.")
+            embed.add_field(name="⚠️ uh oh...", value=f"{url} not found in blacklist", inline=False)
+
+        await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_list")
     @commands.has_permissions(administrator=True)
     async def blacklist_list(self, ctx):
         """List all blacklisted URLs."""
+        embed = discord.Embed(title="🚫 blacklisted urls", color=discord.Color.dark_grey())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+
         entries = self.blacklist_table.all()
         if entries:
-            await ctx.send("\n".join(u['url'] for u in entries))
+            for i, entry in enumerate(entries, start=1):
+                embed.add_field(name=f"{i}.", value=entry['url'], inline=False)
         else:
-            await ctx.send("Blacklist is empty.")
+            embed.description = "🦗 nothing here yet..."
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(URLStore(bot))
