@@ -17,7 +17,6 @@ class Utility(commands.Cog):
 
         embed = discord.Embed(color=discord.Color.dark_grey())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-        embed.add_field(name="\n", value="\n", inline=False)
         embed.add_field(name="🕔 uptime", value=f"{hours}h {minutes}m {seconds}s", inline=False)
 
         await ctx.send(embed=embed)
