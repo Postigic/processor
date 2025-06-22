@@ -101,5 +101,16 @@ class Fun(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.command()
+    async def rate(self, ctx, *, thing: str):
+        """Rates something on a scale of 0 to 10."""
+        rating = random.randint(0, 10)
+
+        embed = discord.Embed(color=discord.Color.gold())
+        embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        embed.add_field(name="⭐ i rate this thing a...", value=f"{rating}/10", inline=False)
+
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(Fun(bot))

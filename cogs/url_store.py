@@ -5,6 +5,7 @@ import asyncio
 import random
 import re
 import os
+from urllib.parse import urlparse, urlunparse
 from utils.paginator import Paginator
 
 URL_REGEX = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
@@ -17,10 +18,17 @@ class URLStore(commands.Cog):
         self.urls_table = self.db.table('urls')
         self.blacklist_table = self.db.table('blacklist')
 
+    def normalize_url(self, url):
+        parsed = urlparse(url)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+
     def is_blacklisted(self, url):
+        url = self.normalize_url(url)
         return self.blacklist_table.search(Query().url == url)
     
-    def add_url(self, url):
+    def add_url(self, url: str):
+        url = self.normalize_url(url)
+
         if self.is_blacklisted(url):
             return False
         
@@ -96,6 +104,8 @@ class URLStore(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def url_remove(self, ctx, url: str):
         """Remove a specific URL from the database."""
+        url = self.normalize_url(url)
+    
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
@@ -166,6 +176,8 @@ class URLStore(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def blacklist_add(self, ctx, url: str):
         """Add a URL to the blacklist."""
+        url = self.normalize_url(url)
+
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
@@ -181,6 +193,8 @@ class URLStore(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def blacklist_remove(self, ctx, url: str):
         """Remove a URL from the blacklist."""
+        url = self.normalize_url(url)
+
         embed = discord.Embed(color=discord.Color.orange())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
