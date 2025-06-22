@@ -38,12 +38,24 @@ class URLStore(commands.Cog):
         
         return False
     
+    def classify_url_weight(self, url: str) -> int:
+        if "tenor.com" in url or "discordapp" in url or "imgur.com" in url:
+            return 10
+        elif "fxtwitter.com" in url:
+            return 6
+        elif "youtube.com" in url or "youtu.be" in url:
+            return 2
+        return 1
+
     def get_random_url(self):
         urls = self.urls_table.all()
         filtered = [u["url"] for u in urls if not self.is_blacklisted(u["url"])]
-        if filtered:
-            return random.choice(filtered)
-        return None
+
+        if not filtered:
+            return None
+        
+        weights = [self.classify_url_weight(url) for url in filtered]
+        return random.choices(filtered, weights=weights, k=1)[0]
     
     @commands.Cog.listener()
     async def on_message(self, message):
