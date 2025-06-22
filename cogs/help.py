@@ -72,4 +72,4 @@ class Help(commands.HelpCommand):
             
             parts.append(part)
 
-        return f";{command.qualified_name} {" ".join(parts)}"
+        return f";{command.qualified_name} {' '.join(parts)}"
