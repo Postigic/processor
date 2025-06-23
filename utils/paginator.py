@@ -34,35 +34,29 @@ class Paginator(View):
 
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if interaction.user != self.author:
-                await interaction.response.send_message("this ain't your session bud...", ephemeral=True)
-                return
+        if interaction.user != self.author:
+            await interaction.response.send_message("this ain't your session bud...", ephemeral=True)
+            return
 
-            self.current_page -= 1
-            if self.current_page == 0:
-                self.prev_button.disabled = True
-            self.next_button.disabled = False
+        self.current_page -= 1
+        if self.current_page == 0:
+            self.prev_button.disabled = True
+        self.next_button.disabled = False
 
-            await interaction.response.edit_message(embed=self.get_embed(), view=self)
-        except Exception as e:
-            print(f"[Paginator] Previous button error: {e}")
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.grey)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if interaction.user != self.author:
-                await interaction.response.send_message("this ain't your session bud...", ephemeral=True)
-                return
+        if interaction.user != self.author:
+            await interaction.response.send_message("this ain't your session bud...", ephemeral=True)
+            return
 
-            self.current_page += 1
-            if self.current_page == self.total_pages - 1:
-                self.next_button.disabled = True
-            self.prev_button.disabled = False
+        self.current_page += 1
+        if self.current_page == self.total_pages - 1:
+            self.next_button.disabled = True
+        self.prev_button.disabled = False
 
-            await interaction.response.edit_message(embed=self.get_embed(), view=self)
-        except Exception as e:
-            print(f"[Paginator] Next button error: {e}")
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_timeout(self):
         for child in self.children:

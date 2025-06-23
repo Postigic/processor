@@ -112,6 +112,28 @@ class URLStore(commands.Cog):
 
         view.message = await ctx.send(embed=embed, view=view)
 
+    @commands.command(name="url_scan")
+    @commands.has_permissions(administrator=True)
+    async def url_scan(self, ctx, limit: int = 1000):
+        """Scan previous messages to backfill missed URLs."""
+        await ctx.send(f"🔍 Scanning last `{limit}` messages...")
+
+        added_count = 0
+        async for message in ctx.channel.history(limit=limit, oldest_first=True):
+            if message.author.bot:
+                continue
+
+            urls = URL_REGEX.findall(message.content)
+            for embed in message.embeds:
+                if embed.url:
+                    urls.append(embed.url)
+
+            for url in urls:
+                if self.add_url(url):
+                    added_count += 1
+
+        await ctx.send(f"✅ Done! Added `{added_count}` new URLs.")
+
     @commands.command(name="url_remove")
     @commands.has_permissions(administrator=True)
     async def url_remove(self, ctx, url: str):

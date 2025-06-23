@@ -35,29 +35,26 @@ class Utility(commands.Cog):
     @commands.command()
     async def server_info(self, ctx):
         """Shows server information"""
-        try:
-            guild = ctx.guild
-            embed = discord.Embed(color=discord.Color.blue())
-            embed.set_author(name=guild.name, icon_url=guild.icon.url if guild.icon else None)
-            
-            bots = sum(member.bot for member in guild.members)
-            humans = guild.member_count - bots
-            
-            embed.add_field(name="👑 Owner", value=guild.owner.mention, inline=True)
-            embed.add_field(name="📆 Created", value=guild.created_at.strftime("%b %d, %Y"), inline=True)
-            embed.add_field(name="🌍 Locale", value=guild.preferred_locale.value.replace('_', '-').title(), inline=True)
-            embed.add_field(name="👥 Members", value=f"{humans} humans\n{bots} bots", inline=True)
-            embed.add_field(name="💬 Channels", value=f"{len(guild.text_channels)} text\n{len(guild.voice_channels)} voice", inline=True)
-            embed.add_field(name="🎚️ Roles", value=len(guild.roles), inline=True)
+        guild = ctx.guild
+        embed = discord.Embed(color=discord.Color.blue())
+        embed.set_author(name=guild.name, icon_url=guild.icon.url if guild.icon else None)
+        
+        bots = sum(member.bot for member in guild.members)
+        humans = guild.member_count - bots
+        
+        embed.add_field(name="👑 Owner", value=guild.owner.mention, inline=True)
+        embed.add_field(name="📆 Created", value=guild.created_at.strftime("%b %d, %Y"), inline=True)
+        embed.add_field(name="🌍 Locale", value=guild.preferred_locale.value.replace('_', '-').title(), inline=True)
+        embed.add_field(name="👥 Members", value=f"{humans} humans\n{bots} bots", inline=True)
+        embed.add_field(name="💬 Channels", value=f"{len(guild.text_channels)} text\n{len(guild.voice_channels)} voice", inline=True)
+        embed.add_field(name="🎚️ Roles", value=len(guild.roles), inline=True)
 
-            embed.set_footer(text=f"Server ID: {guild.id}")
+        embed.set_footer(text=f"Server ID: {guild.id}")
+        
+        if guild.banner:
+            embed.set_image(url=guild.banner.url)
             
-            if guild.banner:
-                embed.set_image(url=guild.banner.url)
-                
-            await ctx.send(embed=embed)
-        except Exception as e:
-            print(f"[Utility] server_info error: {e}")
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
