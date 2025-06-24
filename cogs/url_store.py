@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from tinydb import TinyDB, Query
+import aiosqlite
 import asyncio
 import random
 import re
@@ -9,142 +9,166 @@ from urllib.parse import urlparse, urlunparse
 from utils.paginator import Paginator
 
 URL_REGEX = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
-DB_PATH = os.getenv("URL_DB_PATH", "data/urls.json")
+DB_PATH = os.getenv("URL_DB_PATH", "data/urls.db")
 
 class URLStore(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = TinyDB(DB_PATH)
-        self.urls_table = self.db.table('urls')
-        self.blacklist_table = self.db.table('blacklist')
+        self.db_path = DB_PATH
+        self.db = None
+
+    async def cog_load(self):
+        self.db = await aiosqlite.connect(self.db_path)
+        await self.db.execute("PRAGMA journal_mode=WAL;")
+        await self.initialize_db()
+
+    async def cog_unload(self):
+        if self.db:
+            await self.db.close()
+
+    async def initialize_db(self):
+        await self.db.execute("""
+            CREATE TABLE IF NOT EXISTS urls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT UNIQUE NOT NULL
+            )
+        """)
+        await self.db.execute("""
+            CREATE TABLE IF NOT EXISTS blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT UNIQUE NOT NULL
+            )
+        """)
+        await self.db.commit()
 
     def normalize_url(self, url):
         parsed = urlparse(url)
         return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
-    def is_blacklisted(self, url):
+    async def is_blacklisted(self, url):
         url = self.normalize_url(url)
-        return self.blacklist_table.search(Query().url == url)
-    
-    def add_url(self, url: str):
-        url = self.normalize_url(url)
+        async with self.db.execute("SELECT 1 FROM blacklist WHERE url = ?", (url,)) as cursor:
+            return await cursor.fetchone() is not None
 
-        if self.is_blacklisted(url):
+    async def add_url(self, url: str):
+        url = self.normalize_url(url)
+        if await self.is_blacklisted(url):
             return False
-        
-        if not self.urls_table.contains(Query().url == url):
-            self.urls_table.insert({"url": url})
+        try:
+            await self.db.execute("INSERT INTO urls (url) VALUES (?)", (url,))
+            await self.db.commit()
             return True
-        
-        return False
-    
+        except aiosqlite.IntegrityError:
+            return False
+
     def classify_url_weight(self, url: str) -> int:
-        if "tenor.com" in url or "discordapp" in url or "imgur.com" in url:
+        if any(domain in url for domain in ["tenor.com", "discordapp", "imgur.com"]):
             return 10
         elif "fxtwitter.com" in url:
             return 6
-        elif "youtube.com" in url or "youtu.be" in url:
+        elif any(domain in url for domain in ["youtube.com", "youtu.be"]):
             return 2
         return 1
 
-    def get_random_url(self):
-        urls = self.urls_table.all()
-        filtered = [u["url"] for u in urls if not self.is_blacklisted(u["url"])]
+    async def get_random_url(self):
+        async with self.db.execute("SELECT url FROM urls") as cursor:
+            all_urls = [row[0] for row in await cursor.fetchall()]
 
+        filtered = [url for url in all_urls if not await self.is_blacklisted(url)]
         if not filtered:
             return None
-        
+
         weights = [self.classify_url_weight(url) for url in filtered]
         return random.choices(filtered, weights=weights, k=1)[0]
-    
+
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        if message.author.bot or message.channel.id != 869868084725432402:
             return
-        
-        if message.channel.id != 869868084725432402:
-            return
-        
         ctx = await self.bot.get_context(message)
         if ctx.valid:
             return
-        
-        urls = URL_REGEX.findall(message.content)
 
-        for embed in message.embeds:
-            if embed.url:
-                urls.append(embed.url)
+        urls = URL_REGEX.findall(message.content)
+        urls.extend(embed.url for embed in message.embeds if embed.url)
 
         for url in urls:
-            added = self.add_url(url)
-            if added:
+            if await self.add_url(url):
                 print(f"Added new URL: {url}")
 
         if message.reference:
             replied = await message.channel.fetch_message(message.reference.message_id)
             if replied.author.id == self.bot.user.id:
-                url = self.get_random_url()
+                url = await self.get_random_url()
                 if url:
                     await message.reply(url)
                 return
 
         if self.bot.user.mentioned_in(message):
-            url = self.get_random_url()
+            url = await self.get_random_url()
             if url:
                 await message.reply(url)
 
     @commands.command(name="url_list")
     @commands.has_permissions(administrator=True)
     async def url_list(self, ctx):
-        """List all saved URLs."""
-        entries = self.urls_table.all()
+        async with self.db.execute("SELECT url FROM urls") as cursor:
+            urls = [row[0] for row in await cursor.fetchall()]
 
-        if not entries:
+        if not urls:
             embed = discord.Embed(color=discord.Color.blue(), description="🦗 nothing here yet...")
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-
             await ctx.send(embed=embed)
             return
 
-        urls = [entry["url"] for entry in entries]
         view = Paginator(urls, ctx.author, self.bot.user, title="📦 saved urls")
         embed = view.get_embed()
-
         view.message = await ctx.send(embed=embed, view=view)
 
     @commands.command(name="url_scan")
     @commands.has_permissions(administrator=True)
     async def url_scan(self, ctx, limit: int = 1000):
-        """Scan previous messages to backfill missed URLs."""
-        await ctx.send(f"🔍 Scanning last `{limit}` messages...")
+        scanning_embed = discord.Embed(color=discord.Color.blue())
+        scanning_embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        scanning_embed.add_field(name="🔍 scanning...", value=f"scanning the last `{limit}` messages for urls...", inline=False)
+        msg = await ctx.send(embed=scanning_embed)
 
         added_count = 0
-        async for message in ctx.channel.history(limit=limit, oldest_first=True):
+        to_insert = []
+
+        async for message in ctx.channel.history(limit=limit):
             if message.author.bot:
                 continue
-
             urls = URL_REGEX.findall(message.content)
-            for embed in message.embeds:
-                if embed.url:
-                    urls.append(embed.url)
-
+            urls.extend(embed.url for embed in message.embeds if embed.url)
             for url in urls:
-                if self.add_url(url):
-                    added_count += 1
+                norm = self.normalize_url(url)
+                if not await self.is_blacklisted(norm):
+                    to_insert.append((norm,))
 
-        await ctx.send(f"✅ Done! Added `{added_count}` new URLs.")
+        if to_insert:
+            try:
+                await self.db.executemany("INSERT OR IGNORE INTO urls (url) VALUES (?)", to_insert)
+                await self.db.commit()
+                added_count = self.db.total_changes
+            except Exception as e:
+                print(f"Batch insert error: {e}")
+
+        done_embed = discord.Embed(color=discord.Color.green())
+        done_embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+        done_embed.add_field(name="✅ ding ding ding!!!", value=f"added `{added_count}` new urls", inline=False)
+        await msg.edit(embed=done_embed)
 
     @commands.command(name="url_remove")
     @commands.has_permissions(administrator=True)
     async def url_remove(self, ctx, url: str):
-        """Remove a specific URL from the database."""
         url = self.normalize_url(url)
-    
+        cursor = await self.db.execute("DELETE FROM urls WHERE url = ?", (url,))
+        await self.db.commit()
+        removed = cursor.rowcount > 0
+
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-
-        removed = self.urls_table.remove(Query().url == url)
-
         if removed:
             embed.add_field(name="🚮 removed", value=f"{url} removed from database", inline=False)
         else:
@@ -155,85 +179,76 @@ class URLStore(commands.Cog):
     @commands.command(name="url_purge")
     @commands.has_permissions(administrator=True)
     async def url_purge(self, ctx):
-        """Purge all URLs from the database."""
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
-        
+
         embed = discord.Embed(color=discord.Color.dark_red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
         embed.add_field(name="⚠️ confirmation required", value="are you sure you want to delete all urls? type `yes` to confirm", inline=False)
-
         await ctx.send(embed=embed)
 
         try:
             msg = await self.bot.wait_for("message", timeout=15.0, check=check)
             if msg.content.lower() == "yes":
-                self.urls_table.truncate()
+                await self.db.execute("DELETE FROM urls")
+                await self.db.commit()
                 embed = discord.Embed(color=discord.Color.dark_red())
                 embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
                 embed.add_field(name="💥 purged", value="all urls have been purged from the database", inline=False)
-
-                await ctx.send(embed=embed)
             else:
                 embed = discord.Embed(color=discord.Color.red())
                 embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
                 embed.add_field(name="❌ cancelled", value="purge cancelled", inline=False)
-
-                await ctx.send(embed=embed)
         except asyncio.TimeoutError:
             embed = discord.Embed(color=discord.Color.yellow())
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
             embed.add_field(name="⏰ timeout", value="confirmation timed out, purge cancelled", inline=False)
 
-            await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_list")
     @commands.has_permissions(administrator=True)
     async def blacklist_list(self, ctx):
-        """List all blacklisted URLs."""
-        entries = self.blacklist_table.all()
+        async with self.db.execute("SELECT url FROM blacklist") as cursor:
+            urls = [row[0] for row in await cursor.fetchall()]
 
-        if not entries:
+        if not urls:
             embed = discord.Embed(title="🚫 blacklisted urls", description="🦗 nothing here yet...", color=discord.Color.dark_grey())
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-            
             await ctx.send(embed=embed)
             return
-        
-        urls = [entry["url"] for entry in entries]
+
         view = Paginator(urls, ctx.author, self.bot.user, title="🚫 blacklisted urls", color=discord.Color.dark_grey())
         embed = view.get_embed()
-
         view.message = await ctx.send(embed=embed, view=view)
 
     @commands.command(name="blacklist_add")
     @commands.has_permissions(administrator=True)
     async def blacklist_add(self, ctx, url: str):
-        """Add a URL to the blacklist."""
         url = self.normalize_url(url)
-
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
-        if self.blacklist_table.contains(Query().url == url):
-            embed.add_field(name="⚠️ uh oh...", value=f"{url} already blacklisted", inline=False)
-        else:
-            self.blacklist_table.insert({'url': url})
-            embed.add_field(name="✅ ding ding ding!!!", value=f"{url} blacklisted", inline=False)
+        async with self.db.execute("SELECT 1 FROM blacklist WHERE url = ?", (url,)) as cursor:
+            if await cursor.fetchone():
+                embed.add_field(name="⚠️ uh oh...", value=f"{url} already blacklisted", inline=False)
+            else:
+                await self.db.execute("INSERT INTO blacklist (url) VALUES (?)", (url,))
+                await self.db.commit()
+                embed.add_field(name="✅ ding ding ding!!!", value=f"{url} blacklisted", inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_remove")
     @commands.has_permissions(administrator=True)
     async def blacklist_remove(self, ctx, url: str):
-        """Remove a URL from the blacklist."""
         url = self.normalize_url(url)
-
         embed = discord.Embed(color=discord.Color.orange())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
 
-        if self.blacklist_table.contains(Query().url == url):
-            self.blacklist_table.remove(Query().url == url)
+        cursor = await self.db.execute("DELETE FROM blacklist WHERE url = ?", (url,))
+        await self.db.commit()
+        if cursor.rowcount:
             embed.add_field(name="✅ ding ding ding!!!", value=f"{url} removed from blacklist", inline=False)
         else:
             embed.add_field(name="⚠️ uh oh...", value=f"{url} not found in blacklist", inline=False)
