@@ -112,6 +112,7 @@ class URLStore(commands.Cog):
     @commands.command(name="url_list")
     @commands.has_permissions(administrator=True)
     async def url_list(self, ctx):
+        """Lists all saved URLs."""
         async with self.db.execute("SELECT url FROM urls") as cursor:
             urls = [row[0] for row in await cursor.fetchall()]
 
@@ -128,6 +129,7 @@ class URLStore(commands.Cog):
     @commands.command(name="url_scan")
     @commands.has_permissions(administrator=True)
     async def url_scan(self, ctx, limit: int = 1000):
+        """Scans the last `limit` (default: 1000) messages in the channel for URLs and adds them to the database."""
         scanning_embed = discord.Embed(color=discord.Color.blue())
         scanning_embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
         scanning_embed.add_field(name="🔍 scanning...", value=f"scanning the last `{limit}` messages for urls...", inline=False)
@@ -162,6 +164,7 @@ class URLStore(commands.Cog):
     @commands.command(name="url_remove")
     @commands.has_permissions(administrator=True)
     async def url_remove(self, ctx, url: str):
+        """Removes a URL from the database."""
         url = self.normalize_url(url)
         cursor = await self.db.execute("DELETE FROM urls WHERE url = ?", (url,))
         await self.db.commit()
@@ -179,6 +182,7 @@ class URLStore(commands.Cog):
     @commands.command(name="url_purge")
     @commands.has_permissions(administrator=True)
     async def url_purge(self, ctx):
+        """Purges all URLs from the database."""
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
 
@@ -209,6 +213,7 @@ class URLStore(commands.Cog):
     @commands.command(name="blacklist_list")
     @commands.has_permissions(administrator=True)
     async def blacklist_list(self, ctx):
+        """Lists all blacklisted URLs."""
         async with self.db.execute("SELECT url FROM blacklist") as cursor:
             urls = [row[0] for row in await cursor.fetchall()]
 
@@ -225,6 +230,7 @@ class URLStore(commands.Cog):
     @commands.command(name="blacklist_add")
     @commands.has_permissions(administrator=True)
     async def blacklist_add(self, ctx, url: str):
+        """Adds a URL to the blacklist."""
         url = self.normalize_url(url)
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
@@ -242,6 +248,7 @@ class URLStore(commands.Cog):
     @commands.command(name="blacklist_remove")
     @commands.has_permissions(administrator=True)
     async def blacklist_remove(self, ctx, url: str):
+        """Removes a URL from the blacklist."""
         url = self.normalize_url(url)
         embed = discord.Embed(color=discord.Color.orange())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
