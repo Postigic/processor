@@ -83,7 +83,7 @@ class URLStore(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or message.channel.id != 869868084725432402:
+        if message.author.bot or "general" not in message.channel.name.lower():
             return
         ctx = await self.bot.get_context(message)
         if ctx.valid:
