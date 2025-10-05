@@ -15,10 +15,14 @@ bot = commands.Bot(command_prefix=";", intents=intents, help_command=Help())
 
 @bot.event
 async def on_ready():
-    print(f"Bot is ready. Logged in as {bot.user}")
+    print(f"Bot is ready. Logged in as {bot.user}", end="\n\n")
 
     for guild in bot.guilds:
         print(f"Connected to: {guild.name}")
+
+    print()
+
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="you"))
 
 @bot.event
 async def on_message(message):

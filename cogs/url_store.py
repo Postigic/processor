@@ -7,6 +7,7 @@ import re
 import os
 from urllib.parse import urlparse, urlunparse
 from utils.paginator import Paginator
+from utils.confirmation import Confirmation
 
 URL_REGEX = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
 DB_PATH = os.getenv("URL_DB_PATH", "data/urls.db")
@@ -110,9 +111,14 @@ class URLStore(commands.Cog):
                 await message.reply(url)
 
     @commands.command(name="url_list")
-    @commands.has_permissions(administrator=True)
     async def url_list(self, ctx):
         """Lists all saved URLs."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+
         async with self.db.execute("SELECT url FROM urls") as cursor:
             urls = [row[0] for row in await cursor.fetchall()]
 
@@ -127,9 +133,14 @@ class URLStore(commands.Cog):
         view.message = await ctx.send(embed=embed, view=view)
 
     @commands.command(name="url_scan")
-    @commands.has_permissions(administrator=True)
     async def url_scan(self, ctx, limit: int = 1000):
         """Scans the last `limit` (default: 1000) messages in the channel for URLs and adds them to the database."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+
         scanning_embed = discord.Embed(color=discord.Color.blue())
         scanning_embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
         scanning_embed.add_field(name="🔍 scanning...", value=f"scanning the last `{limit}` messages for urls...", inline=False)
@@ -162,9 +173,14 @@ class URLStore(commands.Cog):
         await msg.edit(embed=done_embed)
 
     @commands.command(name="url_remove")
-    @commands.has_permissions(administrator=True)
     async def url_remove(self, ctx, url: str):
         """Removes a URL from the database."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+    
         url = self.normalize_url(url)
         cursor = await self.db.execute("DELETE FROM urls WHERE url = ?", (url,))
         await self.db.commit()
@@ -180,40 +196,48 @@ class URLStore(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="url_purge")
-    @commands.has_permissions(administrator=True)
     async def url_purge(self, ctx):
         """Purges all URLs from the database."""
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
 
         embed = discord.Embed(color=discord.Color.dark_red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-        embed.add_field(name="⚠️ confirmation required", value="are you sure you want to delete all urls? type `yes` to confirm", inline=False)
-        await ctx.send(embed=embed)
+        embed.add_field(name="⚠️ confirmation required", value="are you sure you want to delete all urls?", inline=False)
 
-        try:
-            msg = await self.bot.wait_for("message", timeout=15.0, check=check)
-            if msg.content.lower() == "yes":
-                await self.db.execute("DELETE FROM urls")
-                await self.db.commit()
-                embed = discord.Embed(color=discord.Color.dark_red())
-                embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-                embed.add_field(name="💥 purged", value="all urls have been purged from the database", inline=False)
-            else:
-                embed = discord.Embed(color=discord.Color.red())
-                embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-                embed.add_field(name="❌ cancelled", value="purge cancelled", inline=False)
-        except asyncio.TimeoutError:
+        view = Confirmation(ctx.author)
+        await ctx.send(embed=embed, view=view)
+        await view.wait()
+
+        if view.value is None:
             embed = discord.Embed(color=discord.Color.yellow())
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
             embed.add_field(name="⏰ timeout", value="confirmation timed out, purge cancelled", inline=False)
+        elif view.value:
+            await self.db.execute("DELETE FROM urls")
+            await self.db.commit()
+            embed = discord.Embed(color=discord.Color.dark_red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="💥 purged", value="all urls have been purged from the database", inline=False)
+        else:
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ cancelled", value="purge cancelled", inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_list")
-    @commands.has_permissions(administrator=True)
     async def blacklist_list(self, ctx):
         """Lists all blacklisted URLs."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+
         async with self.db.execute("SELECT url FROM blacklist") as cursor:
             urls = [row[0] for row in await cursor.fetchall()]
 
@@ -228,9 +252,14 @@ class URLStore(commands.Cog):
         view.message = await ctx.send(embed=embed, view=view)
 
     @commands.command(name="blacklist_add")
-    @commands.has_permissions(administrator=True)
     async def blacklist_add(self, ctx, url: str):
         """Adds a URL to the blacklist."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+
         url = self.normalize_url(url)
         embed = discord.Embed(color=discord.Color.red())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
@@ -246,9 +275,14 @@ class URLStore(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="blacklist_remove")
-    @commands.has_permissions(administrator=True)
     async def blacklist_remove(self, ctx, url: str):
         """Removes a URL from the blacklist."""
+        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+            embed = discord.Embed(color=discord.Color.red())
+            embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
+            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            return await ctx.send(embed=embed)
+
         url = self.normalize_url(url)
         embed = discord.Embed(color=discord.Color.orange())
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
