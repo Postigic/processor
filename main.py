@@ -1,5 +1,6 @@
 import os
 import discord
+import asyncio
 from discord.ext import commands
 from dotenv import load_dotenv
 from cogs.help import Help
@@ -11,29 +12,38 @@ intents.message_content = True
 intents.members = True
 intents.guilds = True
 
-bot = commands.Bot(command_prefix=";", intents=intents, help_command=Help())
+bot = commands.Bot(command_prefix=";", intents=intents, help_command=Help(), case_insensitive=True)
 
 @bot.event
 async def on_ready():
-    print(f"Bot is ready. Logged in as {bot.user}", end="\n\n")
+    print(f"\n✅ Bot is ready. Logged in as {bot.user}", end="\n\n")
 
     for guild in bot.guilds:
-        print(f"Connected to: {guild.name}")
+        print(f"    Connected to: {guild.name}")
 
     print()
 
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="you"))
+
+async def load_cogs():
+    EXCEPTIONS = {"help.py"}
+
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py") and filename not in EXCEPTIONS:
+            extension = f"cogs.{filename[:-3]}"
+            try:
+                await bot.load_extension(extension)
+                print(f"✅ Loaded {extension}")
+            except Exception as e:
+                print(f"❌ Failed to load {extension}: {e}")
 
 @bot.event
 async def on_message(message):
     await bot.process_commands(message)
 
 async def main():
-    await bot.load_extension("cogs.fun")
-    await bot.load_extension("cogs.utility")
-    await bot.load_extension("cogs.url_store")
+    await load_cogs()
     await bot.start(os.getenv("BOT_TOKEN"))
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

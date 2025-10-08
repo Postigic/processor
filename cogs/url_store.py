@@ -44,7 +44,7 @@ class URLStore(commands.Cog):
 
     def normalize_url(self, url):
         parsed = urlparse(url)
-        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
     async def is_blacklisted(self, url):
         url = self.normalize_url(url)
@@ -73,18 +73,17 @@ class URLStore(commands.Cog):
 
     async def get_random_url(self):
         async with self.db.execute("SELECT url FROM urls") as cursor:
-            all_urls = [row[0] for row in await cursor.fetchall()]
+            urls = [row[0] for row in await cursor.fetchall()]
 
-        filtered = [url for url in all_urls if not await self.is_blacklisted(url)]
-        if not filtered:
+        if not urls:
             return None
 
-        weights = [self.classify_url_weight(url) for url in filtered]
-        return random.choices(filtered, weights=weights, k=1)[0]
+        weights = [self.classify_url_weight(url) for url in urls]
+        return random.choices(urls, weights=weights, k=1)[0]
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or "general" not in message.channel.name.lower():
+        if message.author.bot:
             return
         ctx = await self.bot.get_context(message)
         if ctx.valid:
@@ -253,7 +252,7 @@ class URLStore(commands.Cog):
 
     @commands.command(name="blacklist_add")
     async def blacklist_add(self, ctx, url: str):
-        """Adds a URL to the blacklist."""
+        """Adds a URL to the blacklist and removes it from the main URL database."""
         if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
             embed = discord.Embed(color=discord.Color.red())
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
@@ -269,8 +268,9 @@ class URLStore(commands.Cog):
                 embed.add_field(name="⚠️ uh oh...", value=f"{url} already blacklisted", inline=False)
             else:
                 await self.db.execute("INSERT INTO blacklist (url) VALUES (?)", (url,))
+                await self.db.execute("DELETE FROM urls WHERE url = ?", (url,))
                 await self.db.commit()
-                embed.add_field(name="✅ ding ding ding!!!", value=f"{url} blacklisted", inline=False)
+                embed.add_field(name="✅ ding ding ding!!!", value=f"{url} blacklisted and removed from main database", inline=False)
 
         await ctx.send(embed=embed)
 

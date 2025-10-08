@@ -11,13 +11,15 @@ class Help(commands.HelpCommand):
         ctx = self.context
         category_commands = {}
 
+        ORDER = ["Fun", "Utility", "Maintenance"]
+
         for cog, commands_ in mapping.items():
             if cog and cog.qualified_name == "URLStore":
                 name = "Utility"
             else:
                 name = cog.qualified_name if cog else "No Category"
             
-            filtered = await self.filter_commands(commands_, sort=True)
+            filtered = await self.filter_commands(commands_, sort=False)
             filtered = [cmd for cmd in filtered if cmd.name != "help"]
             
             if not filtered:
@@ -25,6 +27,8 @@ class Help(commands.HelpCommand):
             
             category_commands.setdefault(name, [])
             category_commands[name].extend(filtered)
+
+        category_commands = dict(sorted(category_commands.items(), key=lambda item: ORDER.index(item[0]) if item[0] in ORDER else 999))
 
         entries = []
 
