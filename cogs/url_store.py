@@ -85,7 +85,12 @@ class URLStore(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
+        
+        if isinstance(message.channel, discord.TextChannel) and message.channel.is_nsfw():
+            return
+
         ctx = await self.bot.get_context(message)
+
         if ctx.valid:
             return
 
@@ -197,10 +202,10 @@ class URLStore(commands.Cog):
     @commands.command(name="url_purge")
     async def url_purge(self, ctx):
         """Purges all URLs from the database."""
-        if not (ctx.author.guild_permissions.administrator or await self.bot.is_owner(ctx.author)):
+        if not await self.bot.is_owner(ctx.author):
             embed = discord.Embed(color=discord.Color.red())
             embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.avatar.url)
-            embed.add_field(name="❌ you need admin or bot owner privileges to run this command.", value="", inline=False)
+            embed.add_field(name="❌ only the bot owner can run this command.", value="", inline=False)
             return await ctx.send(embed=embed)
 
         embed = discord.Embed(color=discord.Color.dark_red())

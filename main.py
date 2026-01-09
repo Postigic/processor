@@ -39,6 +39,12 @@ async def load_cogs():
 
 @bot.event
 async def on_message(message):
+    if message.author.bot:
+        return
+
+    if isinstance(message.channel, discord.TextChannel) and message.channel.is_nsfw():
+        return
+
     await bot.process_commands(message)
 
 async def main():
